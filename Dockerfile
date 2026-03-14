@@ -23,6 +23,7 @@ WORKDIR /app
 
 # Copy installed environment from builder
 COPY --from=builder /app/.venv /app/.venv
+COPY --from=builder /app/src /app/src
 COPY --from=builder /app/config /app/config
 
 ENV PATH="/app/.venv/bin:$PATH"
