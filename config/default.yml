@@ -1,0 +1,85 @@
+# Literavore default configuration
+
+# Conferences to process
+conferences:
+  - name: "CoRL-2025"
+    year: 2025
+    max_papers: 2000
+    openreview_url: "https://openreview.net/group?id=robot-learning.org/CoRL/2025/Conference"
+    filter_for: []
+  - name: "ICML-2025"
+    year: 2025
+    max_papers: 2000
+    openreview_url: "https://openreview.net/group?id=ICML.cc/2025/Conference"
+    filter_for: ["Oral", "Spotlight"]
+  - name: "ICLR-2025"
+    year: 2025
+    max_papers: 2000
+    openreview_url: "https://openreview.net/group?id=ICLR.cc/2025/Conference"
+    filter_for: ["Oral", "Spotlight"]
+  - name: "NeurIPS-2024"
+    year: 2024
+    max_papers: 2000
+    openreview_url: "https://openreview.net/group?id=NeurIPS.cc/2024/Conference"
+    filter_for: ["Oral", "Spotlight"]
+
+# PDF download settings
+pdf:
+  max_concurrent: 10
+  delay_between_requests: 1.5
+  max_retries: 3
+  timeout: 30
+  chunk_size: 8192
+  user_agent: "Literavore/1.0 (PDF Fetcher)"
+  validate_pdfs: true
+  keep_pdfs: false  # Delete PDFs after extraction in prod; set true in dev
+  base_backoff: 2.0
+  rate_limit_backoff: 10.0
+  max_backoff: 60.0
+  backoff_jitter: true
+
+# Text extraction settings
+extract:
+  batch_size: 50
+  max_workers: 4
+
+# Summary generation settings
+summary:
+  model: "gpt-4o-mini"
+  max_tokens: 500
+  temperature: 0.3
+  max_concurrent: 10
+  batch_size: 20
+  rate_limit_rpm: 100
+  enable_tag_extraction: true
+  max_tag_tokens: 300
+  cache_enabled: true
+  pricing:
+    input_per_1m_tokens: 0.15
+    output_per_1m_tokens: 0.60
+
+# Embedding settings
+embedding:
+  model: "text-embedding-3-large"
+  dimensions: 3072
+  batch_size: 128
+  views:
+    - title_abstract
+    - paper_card
+    - keyword_enriched
+
+# Serve settings
+serve:
+  api_host: "0.0.0.0"
+  api_port: 8000
+  streamlit_port: 8501
+  default_top_k: 10
+
+# Storage settings
+storage:
+  backend: "local"  # "local" or "s3"
+  data_dir: "data"
+
+# Processing settings
+processing:
+  min_abstract_length: 50
