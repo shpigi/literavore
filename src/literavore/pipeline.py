@@ -9,6 +9,7 @@ from pathlib import Path
 
 from literavore.config import LiteravoreConfig
 from literavore.db import Database
+from literavore.extract.pdf_extractor import extract_papers_batch
 from literavore.ingest.pdf_downloader import AsyncPDFDownloader
 from literavore.sources.openreview import OpenReviewSource
 from literavore.storage import LocalStorage, StorageBackend
@@ -162,8 +163,17 @@ class Pipeline:
         )
 
     def _run_extract(self, force: bool = False) -> None:
-        """Stub: extract text from downloaded PDFs."""
-        self.logger.info("Stage extract not yet implemented")
+        """Extract text from downloaded PDFs using pymupdf4llm."""
+        papers = self.db.get_papers_needing_stage("extract", force=force)
+        if not papers:
+            self.logger.info("No papers needing extraction — skipping")
+            return
+        self.logger.info("Extracting text from %d papers", len(papers))
+        keep_pdfs = self.config.pdf.keep_pdfs
+        results = extract_papers_batch(papers, self.config.extract, self.db, self.storage, keep_pdfs)
+        self.logger.info(
+            "Extraction complete: %d/%d succeeded", len(results), len(papers)
+        )
 
     def _run_summarize(self, force: bool = False) -> None:
         """Stub: generate LLM summaries and tags."""
