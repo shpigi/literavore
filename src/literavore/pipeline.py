@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
-import json
 import time
 from pathlib import Path
 
 from literavore.config import LiteravoreConfig
 from literavore.db import Database
+from literavore.ingest.pdf_downloader import AsyncPDFDownloader
+from literavore.sources.openreview import OpenReviewSource
 from literavore.storage import LocalStorage, StorageBackend
 from literavore.utils import get_logger, setup_logging
 
@@ -117,12 +119,47 @@ class Pipeline:
     # ------------------------------------------------------------------
 
     def _run_fetch(self, force: bool = False) -> None:
-        """Stub: fetch paper metadata from conference sources."""
-        self.logger.info("Stage fetch not yet implemented")
+        """Fetch paper metadata from OpenReview for all configured conferences."""
+        source = OpenReviewSource()
+        for conference_config in self.config.conferences:
+            papers = source.fetch(conference_config)
+            for paper in papers:
+                self.db.get_or_create_paper(
+                    paper.id,
+                    title=paper.title,
+                    authors=paper.authors,
+                    abstract=paper.abstract,
+                    pdf_url=paper.pdf_url,
+                    conference=conference_config.name,
+                    source="openreview",
+                )
+                self.db.update_stage_status(paper.id, "fetch", "done")
+            self.logger.info(
+                "Fetched %d papers for conference %s", len(papers), conference_config.name
+            )
 
     def _run_download(self, force: bool = False) -> None:
-        """Stub: download PDFs for fetched papers."""
-        self.logger.info("Stage download not yet implemented")
+        """Download PDFs for all papers that have not yet been downloaded."""
+        papers = self.db.get_papers_needing_stage("download", force=force)
+        if not papers:
+            self.logger.info("No papers needing download — skipping")
+            return
+
+        self.logger.info("Downloading PDFs for %d papers", len(papers))
+
+        async def _run() -> list[dict]:
+            async with AsyncPDFDownloader(self.config.pdf, self.db, self.storage) as downloader:
+                return await downloader.download_papers(papers)
+
+        results = asyncio.run(_run())
+        succeeded = sum(1 for r in results if r.get("success"))
+        failed = len(results) - succeeded
+        self.logger.info(
+            "Download complete: %d succeeded, %d failed (of %d attempted)",
+            succeeded,
+            failed,
+            len(results),
+        )
 
     def _run_extract(self, force: bool = False) -> None:
         """Stub: extract text from downloaded PDFs."""
