@@ -86,23 +86,16 @@ def serve(
     bind_port = port or cfg.serve.api_port
 
     try:
-        from literavore.serve.api import api_app  # type: ignore[import]  # noqa: PLC0415
-    except ImportError:
-        typer.echo("Warning: literavore.serve.api not yet available; using placeholder.", err=True)
-        api_app = None
-
-    try:
         import uvicorn  # noqa: PLC0415
     except ImportError:
-        typer.echo("uvicorn is required to run the API server. Install it with: pip install uvicorn", err=True)
-        raise typer.Exit(code=1)
-
-    if api_app is None:
-        typer.echo("API server is not yet implemented.", err=True)
+        typer.echo(
+            "uvicorn is required to run the API server. Install it with: pip install uvicorn",
+            err=True,
+        )
         raise typer.Exit(code=1)
 
     typer.echo(f"Starting API server on {bind_host}:{bind_port}")
-    uvicorn.run(api_app, host=bind_host, port=bind_port)
+    uvicorn.run("literavore.serve.api:app", host=bind_host, port=bind_port)
 
 
 # ---------------------------------------------------------------------------
@@ -126,7 +119,7 @@ def ui(
 
     bind_port = port or cfg.serve.streamlit_port
 
-    ui_script = Path(__file__).parent / "serve" / "ui.py"
+    ui_script = Path(__file__).parent / "serve" / "streamlit_app.py"
     cmd = [
         sys.executable,
         "-m",
@@ -157,8 +150,10 @@ def ui(
 
 @app.command()
 def mcp() -> None:
-    """Start MCP server."""
-    typer.echo("MCP server not yet implemented")
+    """Start MCP server (stdio transport)."""
+    from literavore.serve.mcp_server import run as run_mcp  # noqa: PLC0415
+
+    run_mcp()
 
 
 # ---------------------------------------------------------------------------
