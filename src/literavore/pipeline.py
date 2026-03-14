@@ -9,6 +9,8 @@ from pathlib import Path
 
 from literavore.config import LiteravoreConfig
 from literavore.db import Database
+from literavore.embed.embedder import Embedder
+from literavore.embed.index import PaperIndex
 from literavore.extract.pdf_extractor import extract_papers_batch
 from literavore.ingest.pdf_downloader import AsyncPDFDownloader
 from literavore.sources.openreview import OpenReviewSource
@@ -190,5 +192,49 @@ class Pipeline:
         self.logger.info("Summarization complete: %d/%d succeeded", len(results), len(papers))
 
     def _run_embed(self, force: bool = False) -> None:
-        """Stub: generate embeddings and build vector index."""
-        self.logger.info("Stage embed not yet implemented")
+        """Generate multi-view embeddings and build FAISS vector index."""
+        import json  # noqa: PLC0415
+
+        papers = self.db.get_papers_needing_stage("embed", force=force)
+        if not papers:
+            self.logger.info("No papers needing embedding — skipping")
+            return
+
+        self.logger.info("Embedding %d papers", len(papers))
+
+        # Load summaries from storage for each paper
+        summaries: dict[str, dict] = {}
+        for paper in papers:
+            paper_id: str = paper["id"]
+            summary_key = f"summaries/{paper_id}.json"
+            if self.storage.exists(summary_key):
+                try:
+                    raw = self.storage.get(summary_key)
+                    summaries[paper_id] = json.loads(raw.decode())
+                except Exception as exc:  # noqa: BLE001
+                    self.logger.warning(
+                        "Could not load summary for %s: %s", paper_id, exc
+                    )
+
+        # Generate embeddings
+        embedder = Embedder(self.config.embedding)
+        embedding_records = embedder.embed_papers(papers, summaries)
+
+        # Build and save the index
+        paper_index = PaperIndex(
+            dimensions=self.config.embedding.dimensions,
+            views=list(self.config.embedding.views),
+        )
+        paper_index.build(embedding_records)
+        paper_index.save(self.storage)
+
+        # Update DB stage status for each paper
+        for paper in papers:
+            self.db.update_stage_status(paper["id"], "embed", "done")
+
+        self.logger.info(
+            "Embed complete: %d papers, %d records, index size %d",
+            len(papers),
+            len(embedding_records),
+            paper_index.size,
+        )
