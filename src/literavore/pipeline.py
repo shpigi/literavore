@@ -13,6 +13,7 @@ from literavore.extract.pdf_extractor import extract_papers_batch
 from literavore.ingest.pdf_downloader import AsyncPDFDownloader
 from literavore.sources.openreview import OpenReviewSource
 from literavore.storage import LocalStorage, StorageBackend
+from literavore.summarize.summarizer import Summarizer
 from literavore.utils import get_logger, setup_logging
 
 STAGES = ["fetch", "download", "extract", "summarize", "embed"]
@@ -170,14 +171,23 @@ class Pipeline:
             return
         self.logger.info("Extracting text from %d papers", len(papers))
         keep_pdfs = self.config.pdf.keep_pdfs
-        results = extract_papers_batch(papers, self.config.extract, self.db, self.storage, keep_pdfs)
+        results = extract_papers_batch(
+            papers, self.config.extract, self.db, self.storage, keep_pdfs
+        )
         self.logger.info(
             "Extraction complete: %d/%d succeeded", len(results), len(papers)
         )
 
     def _run_summarize(self, force: bool = False) -> None:
-        """Stub: generate LLM summaries and tags."""
-        self.logger.info("Stage summarize not yet implemented")
+        """Generate LLM summaries and tags for extracted papers."""
+        papers = self.db.get_papers_needing_stage("summarize", force=force)
+        if not papers:
+            self.logger.info("No papers needing summarization — skipping")
+            return
+        self.logger.info("Summarizing %d papers", len(papers))
+        summarizer = Summarizer(self.config.summary, self.db, self.storage)
+        results = asyncio.run(summarizer.summarize_papers(papers))
+        self.logger.info("Summarization complete: %d/%d succeeded", len(results), len(papers))
 
     def _run_embed(self, force: bool = False) -> None:
         """Stub: generate embeddings and build vector index."""
