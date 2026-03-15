@@ -97,12 +97,24 @@ curl -X POST localhost:8000/search \
   -H 'Content-Type: application/json' \
   -d '{"query": "transformer robotics", "top_k": 5}'
 
-# Paper detail
+# Paper detail (includes summary, tags, openreview_url, pdf_url)
 curl localhost:8000/papers/PAPER_ID
 
 # List papers
 curl 'localhost:8000/papers?conference=CoRL-2025'
+
+# UMAP 2D projection of all paper embeddings (cached after first call)
+curl localhost:8000/umap
 ```
+
+## UI
+
+The Streamlit UI (`literavore ui`) provides:
+
+- **Search**: semantic query via text input (Enter or button)
+- **UMAP paper map**: all papers projected to 2D; search results highlighted in red with rank labels
+- **Result cards**: clickable title (opens OpenReview in new tab), AI summary, tags
+- **Paper detail**: full author list, abstract, AI summary, tags, OpenReview + PDF links
 
 ## MCP Tools
 
@@ -110,7 +122,7 @@ The MCP server exposes 8 tools to Claude Desktop / Gemini CLI:
 
 - `search_papers_semantic` — vector search across all papers
 - `search_papers_by_author` — find papers by author name
-- `get_paper_details` — full paper metadata + AI summary
+- `get_paper_details` — full metadata, AI summary, tags, OpenReview + PDF URLs
 - `get_paper_statistics` — counts per conference and stage
 - `get_conference_overview` — per-conference breakdown
 - `list_conferences` — all conferences in the index
@@ -138,8 +150,9 @@ ruff check src/          # Lint
 | LLM | gpt-4o-mini | Proven in conf_digest |
 | CLI | Typer | Type-hint-based, auto-generated help |
 | API | FastAPI | Same as conf_digest |
-| UI | Streamlit | Interactive search + visualization |
+| UI | Streamlit | Interactive search + UMAP visualization |
 | Agents | MCP (FastMCP) | Claude Desktop / Gemini CLI |
+| Dim. reduction | UMAP + numba | 2D paper map from high-dim embeddings |
 
 ## Agentic Development
 
