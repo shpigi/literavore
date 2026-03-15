@@ -35,6 +35,7 @@ class Tagger:
             "key_phrases": [kw.lower() for kw in keywords],
             "domains": [],
             "methods": [],
+            "datasets_benchmarks": [],
         }
 
     async def extract_tags(
@@ -42,6 +43,7 @@ class Tagger:
         title: str,
         abstract: str,
         summary: str,
+        keywords: list[str] | None = None,
     ) -> dict:
         """Extract structured tags using the LLM.
 
@@ -56,11 +58,15 @@ class Tagger:
         Returns:
             dict with key_phrases, domains, methods keys.
         """
-        empty: dict = {"key_phrases": [], "domains": [], "methods": []}
+        empty: dict = {"key_phrases": [], "domains": [], "methods": [], "datasets_benchmarks": []}
 
         if not self._config.enable_tag_extraction:
             logger.debug("Tag extraction disabled — returning empty tags")
             return empty
+
+        keywords_section = ""
+        if keywords:
+            keywords_section = "\nAuthor-supplied keywords: " + ", ".join(keywords)
 
         messages = [
             {"role": "system", "content": TAG_SYSTEM},
@@ -70,6 +76,7 @@ class Tagger:
                     title=title,
                     abstract=abstract,
                     summary=summary,
+                    keywords_section=keywords_section,
                 ),
             },
         ]
@@ -90,6 +97,7 @@ class Tagger:
                 "key_phrases": parsed.get("key_phrases", []),
                 "domains": parsed.get("domains", []),
                 "methods": parsed.get("methods", []),
+                "datasets_benchmarks": parsed.get("datasets_benchmarks", []),
             }
         except (json.JSONDecodeError, KeyError, Exception) as exc:  # noqa: BLE001
             logger.warning("Tag extraction failed (%s) — returning empty tags", exc)

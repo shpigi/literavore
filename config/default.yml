@@ -7,21 +7,21 @@ conferences:
     max_papers: 2000
     openreview_url: "https://openreview.net/group?id=robot-learning.org/CoRL/2025/Conference"
     filter_for: []
-  - name: "ICML-2025"
-    year: 2025
-    max_papers: 2000
-    openreview_url: "https://openreview.net/group?id=ICML.cc/2025/Conference"
-    filter_for: ["Oral", "Spotlight"]
-  - name: "ICLR-2025"
-    year: 2025
-    max_papers: 2000
-    openreview_url: "https://openreview.net/group?id=ICLR.cc/2025/Conference"
-    filter_for: ["Oral", "Spotlight"]
-  - name: "NeurIPS-2024"
-    year: 2024
-    max_papers: 2000
-    openreview_url: "https://openreview.net/group?id=NeurIPS.cc/2024/Conference"
-    filter_for: ["Oral", "Spotlight"]
+  # - name: "ICML-2025"
+  #   year: 2025
+  #   max_papers: 2000
+  #   openreview_url: "https://openreview.net/group?id=ICML.cc/2025/Conference"
+  #   filter_for: ["Oral", "Spotlight"]
+  # - name: "ICLR-2025"
+  #   year: 2025
+  #   max_papers: 2000
+  #   openreview_url: "https://openreview.net/group?id=ICLR.cc/2025/Conference"
+  #   filter_for: ["Oral", "Spotlight"]
+  # - name: "NeurIPS-2024"
+  #   year: 2024
+  #   max_papers: 2000
+  #   openreview_url: "https://openreview.net/group?id=NeurIPS.cc/2024/Conference"
+  #   filter_for: ["Oral", "Spotlight"]
 
 # PDF download settings
 pdf:
@@ -32,7 +32,7 @@ pdf:
   chunk_size: 8192
   user_agent: "Literavore/1.0 (PDF Fetcher)"
   validate_pdfs: true
-  keep_pdfs: false  # Delete PDFs after extraction in prod; set true in dev
+  keep_pdfs: true  # Delete PDFs after extraction in prod; set true in dev
   base_backoff: 2.0
   rate_limit_backoff: 10.0
   max_backoff: 60.0

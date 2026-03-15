@@ -107,6 +107,21 @@ def _parse_authors(authors_raw: str | list | None) -> list[str]:
         return [authors_raw]
 
 
+def _parse_keywords(keywords_raw: str | list | None) -> list[str]:
+    """Return a list of keyword strings from various stored formats."""
+    if keywords_raw is None:
+        return []
+    if isinstance(keywords_raw, list):
+        return [str(k) for k in keywords_raw]
+    try:
+        parsed = json.loads(keywords_raw)
+        if isinstance(parsed, list):
+            return [str(k) for k in parsed]
+    except (json.JSONDecodeError, TypeError):
+        pass
+    return []
+
+
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
@@ -179,6 +194,9 @@ def get_paper(paper_id: str) -> PaperDetail:
         conference=paper.get("conference", "") or "",
         abstract=paper.get("abstract", "") or "",
         pdf_url=paper.get("pdf_url", "") or "",
+        source_url=paper.get("source_url", "") or "",
+        keywords=_parse_keywords(paper.get("keywords")),
+        published_date=paper.get("published_date"),
         created_at=paper.get("created_at", "") or "",
         stage_status=stage_status,
         summary=summary_data.get("summary", ""),

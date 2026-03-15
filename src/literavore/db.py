@@ -67,6 +67,23 @@ class Database:
             self._conn.execute(CREATE_PAPERS)
             self._conn.execute(CREATE_PROCESSING_STATE)
             self._conn.execute(CREATE_RUNS)
+            self._migrate_papers_table()
+
+    def _migrate_papers_table(self) -> None:
+        """Add new columns to papers table if they don't already exist."""
+        cursor = self._conn.execute("PRAGMA table_info(papers)")
+        existing = {row[1] for row in cursor.fetchall()}
+        new_cols = {
+            "source_url": "TEXT",
+            "keywords": "TEXT",
+            "published_date": "TEXT",
+        }
+        with self._conn:
+            for col, col_type in new_cols.items():
+                if col not in existing:
+                    self._conn.execute(
+                        f"ALTER TABLE papers ADD COLUMN {col} {col_type} DEFAULT NULL"
+                    )
 
     def _row_to_dict(self, row: sqlite3.Row | None) -> dict | None:
         if row is None:
@@ -78,6 +95,9 @@ class Database:
         authors = kwargs.get("authors")
         if isinstance(authors, (list, dict)):
             kwargs["authors"] = json.dumps(authors)
+        keywords = kwargs.get("keywords")
+        if isinstance(keywords, (list, dict)):
+            kwargs["keywords"] = json.dumps(keywords)
 
         existing = self.get_paper(paper_id)
         if existing is not None:
@@ -99,6 +119,9 @@ class Database:
         authors = kwargs.get("authors")
         if isinstance(authors, (list, dict)):
             kwargs["authors"] = json.dumps(authors)
+        keywords = kwargs.get("keywords")
+        if isinstance(keywords, (list, dict)):
+            kwargs["keywords"] = json.dumps(keywords)
         kwargs["updated_at"] = _now()
         set_clause = ", ".join(f"{k} = ?" for k in kwargs)
         values = list(kwargs.values()) + [paper_id]

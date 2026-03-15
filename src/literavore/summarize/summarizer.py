@@ -10,7 +10,6 @@ from typing import TYPE_CHECKING
 from literavore.config import SummaryConfig
 from literavore.summarize.llm_client import LLMClient
 from literavore.summarize.prompts import (
-    MAX_TEXT_EXCERPT_CHARS,
     SUMMARIZE_SYSTEM,
     SUMMARIZE_USER_TEMPLATE,
 )
@@ -50,6 +49,14 @@ class Summarizer:
         title: str = paper.get("title", "")
         abstract: str = paper.get("abstract", "") or ""
 
+        raw_keywords = paper.get("keywords") or []
+        if isinstance(raw_keywords, str):
+            try:
+                raw_keywords = json.loads(raw_keywords)
+            except json.JSONDecodeError:
+                raw_keywords = []
+        paper_keywords: list[str] = [str(k) for k in raw_keywords] if raw_keywords else []
+
         extract_key = f"extract/{paper_id}.json"
 
         # Load extracted text from storage
@@ -62,7 +69,7 @@ class Summarizer:
             return None
 
         full_text: str = extract_data.get("full_text", "")
-        text_excerpt = full_text[:MAX_TEXT_EXCERPT_CHARS]
+        text_excerpt = full_text[:self._config.max_text_excerpt_chars]
 
         # Cache check: skip if summary already exists for same content
         summary_key = f"summaries/{paper_id}.json"
@@ -105,7 +112,9 @@ class Summarizer:
             tags: list = parsed.get("tags", [])
 
             # Optionally enrich with structured tags
-            structured_tags = await self._tagger.extract_tags(title, abstract, summary_text)
+            structured_tags = await self._tagger.extract_tags(
+                title, abstract, summary_text, keywords=paper_keywords or None
+            )
 
             result = {
                 "paper_id": paper_id,

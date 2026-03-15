@@ -12,7 +12,8 @@ import streamlit as st
 
 logger = logging.getLogger(__name__)
 
-API_BASE_URL = "http://localhost:8000"
+import os
+API_BASE_URL = os.environ.get("LITERAVORE_API_URL", "http://localhost:8000")
 
 
 def make_api_request(
@@ -296,11 +297,11 @@ def main() -> None:
     health = check_api_available()
     if health is None:
         st.warning(
-            "The Literavore API is not reachable at http://localhost:8000. "
+            f"The Literavore API is not reachable at {API_BASE_URL}. "
             "Start it with `literavore serve` to enable search."
         )
     else:
-        paper_count = health.get("papers_count") or health.get("total_papers", "?")
+        paper_count = health.get("paper_count") or health.get("papers_count") or health.get("total_papers", "?")
         st.markdown(
             f"<span style='color:#00c853;'>API connected — {paper_count} papers indexed</span>",
             unsafe_allow_html=True,

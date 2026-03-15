@@ -141,6 +141,9 @@ class TestPaperDetail:
             conference="ICML",
             abstract="Abstract",
             pdf_url="",
+            source_url="",
+            keywords=[],
+            published_date=None,
             created_at="",
             stage_status={},
             summary="",
@@ -152,6 +155,9 @@ class TestPaperDetail:
         assert detail.tags == []
         assert detail.structured_tags == {}
         assert detail.stage_status == {}
+        assert detail.source_url == ""
+        assert detail.keywords == []
+        assert detail.published_date is None
 
     def test_full_fields(self) -> None:
         detail = PaperDetail(
@@ -161,6 +167,9 @@ class TestPaperDetail:
             conference="NeurIPS 2024",
             abstract="A comprehensive survey...",
             pdf_url="https://arxiv.org/pdf/1234.pdf",
+            source_url="https://openreview.net/forum?id=paper-123",
+            keywords=["deep learning", "survey"],
+            published_date="2024-01-15",
             created_at="2024-01-15T10:00:00+00:00",
             stage_status={"fetch": "done", "embed": "done"},
             summary="This paper surveys deep learning methods.",
@@ -172,6 +181,9 @@ class TestPaperDetail:
         assert detail.stage_status["fetch"] == "done"
         assert "deep learning" in detail.tags
         assert detail.structured_tags["domains"] == ["ML"]
+        assert detail.source_url == "https://openreview.net/forum?id=paper-123"
+        assert detail.keywords == ["deep learning", "survey"]
+        assert detail.published_date == "2024-01-15"
 
 
 class TestHealthResponse:

@@ -8,7 +8,7 @@ produce a concise summary and extract relevant tags.
 
 Respond with valid JSON only, using this exact schema:
 {
-  "summary": "<2-4 sentence summary of the paper's contribution and methods>",
+  "summary": "<3-5 sentence summary of the paper's contribution and methods>",
   "tags": ["<tag1>", "<tag2>", "..."]
 }
 
@@ -33,10 +33,13 @@ Respond with valid JSON only, using this exact schema:
 {
   "key_phrases": ["<phrase1>", "<phrase2>", "..."],
   "domains": ["<domain1>", "..."],
-  "methods": ["<method1>", "..."]
+  "methods": ["<method1>", "..."],
+  "datasets_benchmarks": ["<dataset_or_benchmark1>", "..."]
 }
 
 All values should be lowercase strings.
+"datasets_benchmarks" should list any datasets or benchmarks mentioned or used in the paper
+(e.g., "imagenet", "glue", "humaneval", "coco"). Use an empty list if none are mentioned.
 """
 
 TAG_USER_TEMPLATE = """\
@@ -45,7 +48,5 @@ Title: {title}
 Abstract: {abstract}
 
 Summary: {summary}
-"""
+{keywords_section}"""
 
-# Maximum characters of extracted text to include in summary prompt
-MAX_TEXT_EXCERPT_CHARS = 3000

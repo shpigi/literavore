@@ -53,6 +53,7 @@ class SummaryConfig(BaseModel):
     enable_tag_extraction: bool = True
     max_tag_tokens: int = 300
     cache_enabled: bool = True
+    max_text_excerpt_chars: int = 3000
     pricing: SummaryPricingConfig = Field(default_factory=SummaryPricingConfig)
 
 

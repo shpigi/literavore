@@ -129,7 +129,7 @@ class TestFallbackWhenTagExtractionDisabled:
 
         result = asyncio.run(tagger.extract_tags("Title", "Abstract.", "Summary."))
 
-        assert result == {"key_phrases": [], "domains": [], "methods": []}
+        assert result == {"key_phrases": [], "domains": [], "methods": [], "datasets_benchmarks": []}
 
     def test_no_llm_call_when_disabled(self, config_no_tags: SummaryConfig, monkeypatch):
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
@@ -164,7 +164,7 @@ class TestJsonParseErrorFallback:
                 tagger.extract_tags("Title", "Abstract.", "Summary.")
             )
 
-        assert result == {"key_phrases": [], "domains": [], "methods": []}
+        assert result == {"key_phrases": [], "domains": [], "methods": [], "datasets_benchmarks": []}
 
     def test_returns_empty_on_missing_keys(
         self, config: SummaryConfig, llm_client: LLMClient
@@ -199,4 +199,4 @@ class TestJsonParseErrorFallback:
                 tagger.extract_tags("Title", "Abstract.", "Summary.")
             )
 
-        assert result == {"key_phrases": [], "domains": [], "methods": []}
+        assert result == {"key_phrases": [], "domains": [], "methods": [], "datasets_benchmarks": []}

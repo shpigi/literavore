@@ -43,6 +43,9 @@ class PaperDetail(BaseModel):
     conference: str
     abstract: str
     pdf_url: str
+    source_url: str
+    keywords: list[str]
+    published_date: str | None
     created_at: str
     stage_status: dict[str, str]
     summary: str

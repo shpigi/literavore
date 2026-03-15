@@ -83,6 +83,8 @@ class OpenReviewSource:
                 paper = self._note_to_metadata(note)
                 if paper is not None:
                     papers.append(paper)
+                if config.max_papers and len(papers) >= config.max_papers:
+                    break
             if config.max_papers and len(papers) >= config.max_papers:
                 break
 
@@ -141,6 +143,16 @@ class OpenReviewSource:
             else:
                 pdf_url = pdf_path
 
+            published_date: str | None = None
+            pdate = getattr(note, "pdate", None)
+            if pdate is not None:
+                try:
+                    from datetime import UTC, datetime  # noqa: PLC0415
+
+                    published_date = datetime.fromtimestamp(pdate / 1000, tz=UTC).date().isoformat()
+                except Exception:  # noqa: BLE001
+                    pass
+
             return PaperMetadata(
                 id=note.id,
                 title=title,
@@ -150,6 +162,7 @@ class OpenReviewSource:
                 venue=venue,
                 pdf_url=pdf_url,
                 source_url=f"https://openreview.net/forum?id={note.id}",
+                published_date=published_date,
                 raw_data=dict(content),
             )
         except Exception as exc:

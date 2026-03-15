@@ -3,6 +3,7 @@
 import io
 from pathlib import Path
 
+import fitz
 import pikepdf
 
 from literavore.utils.logging import get_logger
@@ -50,6 +51,14 @@ def validate_pdf(data: bytes) -> tuple[bool, str | None]:
 
     if num_pages == 0:
         msg = "PDF has no pages"
+        logger.debug(msg)
+        return False, msg
+
+    try:
+        doc = fitz.open(stream=data, filetype="pdf")
+        doc.close()
+    except Exception as exc:
+        msg = f"PDF not openable by PyMuPDF: {exc}"
         logger.debug(msg)
         return False, msg
 

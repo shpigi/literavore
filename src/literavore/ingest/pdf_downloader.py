@@ -10,6 +10,7 @@ import aiohttp
 
 from literavore.config import PdfConfig
 from literavore.db import Database
+from literavore.ingest.pdf_validator import validate_pdf
 from literavore.storage.base import StorageBackend
 from literavore.utils import get_logger
 
@@ -115,6 +116,12 @@ class AsyncPDFDownloader:
 
                 try:
                     data = await self._fetch_url(url)
+                    if self._config.validate_pdfs:
+                        valid, reason = validate_pdf(data)
+                        if not valid:
+                            last_error = f"Validation failed: {reason}"
+                            logger.warning("PDF validation failed for %s: %s", paper_id, reason)
+                            continue  # retry
                     self._storage.put(storage_key, data)
                     self._db.update_stage_status(paper_id, "download", "done")
                     logger.info("Downloaded %s (%d bytes)", paper_id, len(data))

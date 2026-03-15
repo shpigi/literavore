@@ -20,6 +20,7 @@ class PaperMetadata(BaseModel):
     venue: str = ""
     pdf_url: str = ""
     source_url: str = ""
+    published_date: str | None = None
     raw_data: dict[str, Any] = Field(default_factory=dict)
 
 

@@ -103,6 +103,20 @@ class Pipeline:
         config_json = self.config.model_dump_json()
         return hashlib.sha256(config_json.encode()).hexdigest()
 
+    def _limit_papers_by_conference(self, papers: list[dict]) -> list[dict]:
+        """Trim paper list so each conference is capped at its configured max_papers."""
+        limits = {c.name: c.max_papers for c in self.config.conferences}
+        counts: dict[str, int] = {}
+        result = []
+        for paper in papers:
+            conf = paper.get("conference", "")
+            limit = limits.get(conf)
+            n = counts.get(conf, 0)
+            if limit is None or n < limit:
+                result.append(paper)
+                counts[conf] = n + 1
+        return result
+
     def _run_stage(self, stage: str, force: bool = False) -> None:
         """Dispatch *stage* to the appropriate handler."""
         if stage not in STAGES:
@@ -134,6 +148,9 @@ class Pipeline:
                     authors=paper.authors,
                     abstract=paper.abstract,
                     pdf_url=paper.pdf_url,
+                    source_url=paper.source_url,
+                    keywords=paper.keywords,
+                    published_date=paper.published_date,
                     conference=conference_config.name,
                     source="openreview",
                 )
@@ -144,7 +161,9 @@ class Pipeline:
 
     def _run_download(self, force: bool = False) -> None:
         """Download PDFs for all papers that have not yet been downloaded."""
-        papers = self.db.get_papers_needing_stage("download", force=force)
+        papers = self._limit_papers_by_conference(
+            self.db.get_papers_needing_stage("download", force=force)
+        )
         if not papers:
             self.logger.info("No papers needing download — skipping")
             return
@@ -167,7 +186,9 @@ class Pipeline:
 
     def _run_extract(self, force: bool = False) -> None:
         """Extract text from downloaded PDFs using pymupdf4llm."""
-        papers = self.db.get_papers_needing_stage("extract", force=force)
+        papers = self._limit_papers_by_conference(
+            self.db.get_papers_needing_stage("extract", force=force)
+        )
         if not papers:
             self.logger.info("No papers needing extraction — skipping")
             return
@@ -182,7 +203,9 @@ class Pipeline:
 
     def _run_summarize(self, force: bool = False) -> None:
         """Generate LLM summaries and tags for extracted papers."""
-        papers = self.db.get_papers_needing_stage("summarize", force=force)
+        papers = self._limit_papers_by_conference(
+            self.db.get_papers_needing_stage("summarize", force=force)
+        )
         if not papers:
             self.logger.info("No papers needing summarization — skipping")
             return
@@ -195,7 +218,9 @@ class Pipeline:
         """Generate multi-view embeddings and build FAISS vector index."""
         import json  # noqa: PLC0415
 
-        papers = self.db.get_papers_needing_stage("embed", force=force)
+        papers = self._limit_papers_by_conference(
+            self.db.get_papers_needing_stage("embed", force=force)
+        )
         if not papers:
             self.logger.info("No papers needing embedding — skipping")
             return
