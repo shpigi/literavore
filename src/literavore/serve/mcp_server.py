@@ -250,6 +250,7 @@ def get_paper_details(paper_id: str) -> str:
                 "conference": paper.get("conference", ""),
                 "abstract": paper.get("abstract", ""),
                 "pdf_url": paper.get("pdf_url", ""),
+                "openreview_url": f"https://openreview.net/forum?id={paper['id']}",
                 "created_at": paper.get("created_at", ""),
                 "stage_status": stage_status,
                 "summary": summary_data.get("summary", ""),

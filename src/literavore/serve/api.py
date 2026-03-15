@@ -38,6 +38,7 @@ _db: Database | None = None
 _storage: StorageBackend | None = None
 _embedder: Embedder | None = None
 _index: PaperIndex | None = None
+_umap_cache: dict | None = None
 
 
 def _get_config() -> LiteravoreConfig:
@@ -211,6 +212,7 @@ def get_paper(paper_id: str) -> PaperDetail:
         summary=summary_data.get("summary", ""),
         tags=summary_data.get("tags", []),
         structured_tags=summary_data.get("structured_tags", {}),
+        openreview_url=f"https://openreview.net/forum?id={paper['id']}",
     )
 
 
@@ -244,11 +246,22 @@ def search(request: SearchRequest) -> SearchResponse:
     )
 
     db = _get_db()
+    storage = _get_storage()
     results: list[SearchResult] = []
     for hit in hits:
         paper = db.get_paper(hit["paper_id"])
         if paper is None:
             continue
+        tags: list[str] = []
+        hit_summary = ""
+        summary_key = f"summaries/{hit['paper_id']}.json"
+        if storage.exists(summary_key):
+            try:
+                summary_data = json.loads(storage.get(summary_key).decode())
+                tags = summary_data.get("tags", []) or []
+                hit_summary = summary_data.get("summary", "") or ""
+            except Exception:  # noqa: BLE001
+                pass
         results.append(
             SearchResult(
                 paper_id=hit["paper_id"],
@@ -258,7 +271,75 @@ def search(request: SearchRequest) -> SearchResponse:
                 abstract=(paper.get("abstract") or "")[:300],
                 score=round(hit["score"], 4),
                 rank=hit["rank"],
+                summary=hit_summary,
+                tags=tags,
+                openreview_url=f"https://openreview.net/forum?id={hit['paper_id']}",
             )
         )
 
     return SearchResponse(query=request.query, results=results, total=len(results))
+
+
+@app.get("/umap")
+def get_umap_projection() -> dict:
+    """Return 2D UMAP projection of all paper embeddings.
+
+    Computed once on first call and cached in memory. Uses the
+    keyword_enriched view (same as search).
+    """
+    global _umap_cache
+    if _umap_cache is not None:
+        return _umap_cache
+
+    try:
+        import umap as umap_lib  # noqa: PLC0415
+    except ImportError:
+        raise HTTPException(status_code=503, detail="umap-learn not installed")
+
+    try:
+        index = _get_index()
+        if index is None:
+            raise HTTPException(status_code=503, detail="Search index not loaded")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Index load failed: {exc}") from exc
+
+    view = "keyword_enriched" if "keyword_enriched" in index.views else index.views[0]
+    faiss_index = index._indexes[view]
+    metadata = index._metadata[view]
+
+    n = faiss_index.ntotal
+    if n == 0:
+        return {"points": []}
+
+    import numpy as np  # noqa: PLC0415
+
+    try:
+        vecs = np.zeros((n, index.dimensions), dtype=np.float32)
+        for i in range(n):
+            vecs[i] = faiss_index.reconstruct(i)
+
+        reducer = umap_lib.UMAP(n_components=2, random_state=42, n_neighbors=min(15, n - 1))
+        coords = reducer.fit_transform(vecs)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"UMAP failed: {exc}") from exc
+
+    db = _get_db()
+    papers = {p["id"]: p for p in db.get_papers()}
+
+    points = []
+    for i, paper_id in enumerate(metadata):
+        paper = papers.get(paper_id, {})
+        points.append(
+            {
+                "paper_id": paper_id,
+                "x": float(coords[i, 0]),
+                "y": float(coords[i, 1]),
+                "title": paper.get("title", ""),
+                "conference": paper.get("conference", ""),
+            }
+        )
+
+    _umap_cache = {"points": points}
+    return _umap_cache

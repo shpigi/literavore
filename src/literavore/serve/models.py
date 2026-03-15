@@ -24,6 +24,9 @@ class SearchResult(BaseModel):
     abstract: str
     score: float
     rank: int
+    summary: str = ""
+    tags: list[str] = Field(default_factory=list)
+    openreview_url: str = ""
 
 
 class SearchResponse(BaseModel):
@@ -51,6 +54,7 @@ class PaperDetail(BaseModel):
     summary: str
     tags: list[str]
     structured_tags: dict
+    openreview_url: str = ""
 
 
 class HealthResponse(BaseModel):

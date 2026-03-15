@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-import pandas as pd
 import plotly.graph_objects as go
 import requests
 import streamlit as st
@@ -102,31 +101,42 @@ def format_authors(authors: Any) -> str:
 
 def render_result_card(result: dict[str, Any], index: int) -> None:
     """Render a single search result as a card."""
-    paper_id = result.get("id", "")
+    paper_id = result.get("paper_id") or result.get("id", "")
     title = result.get("title", "Untitled")
     authors = format_authors(result.get("authors"))
     venue = result.get("venue") or result.get("conference") or "Unknown"
     score = result.get("score")
-    summary = result.get("summary") or result.get("abstract") or ""
+    abstract = result.get("abstract") or ""
+    tags: list[str] = result.get("tags") or []
+    openreview_url = result.get("openreview_url") or (
+        f"https://openreview.net/forum?id={paper_id}" if paper_id else ""
+    )
 
-    summary_excerpt = summary[:300] + "..." if len(summary) > 300 else summary
+    summary = result.get("summary") or ""
 
     with st.container():
         col_main, col_action = st.columns([5, 1])
         with col_main:
-            st.markdown(f"**{title}**")
+            if openreview_url:
+                st.markdown(
+                    f"**<a href='{openreview_url}' target='_blank'>{title}</a>**",
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.markdown(f"**{title}**")
             st.caption(f"Authors: {authors}  |  Venue: {venue}")
             if score is not None:
                 st.caption(f"Score: {score:.4f}")
-            if summary_excerpt:
-                st.markdown(
-                    f"<small style='color:#aaa;'>{summary_excerpt}</small>",
-                    unsafe_allow_html=True,
-                )
+            if summary:
+                st.markdown(summary)
+            if tags:
+                tag_str = "  ".join(f"`{t}`" for t in tags)
+                st.markdown(tag_str)
         with col_action:
             if paper_id:
                 if st.button("Details", key=f"detail_{index}_{paper_id}"):
                     st.session_state["selected_paper_id"] = paper_id
+                    st.rerun()
         st.divider()
 
 
@@ -138,18 +148,38 @@ def render_paper_detail(paper_id: str) -> None:
         return
 
     title = detail.get("title", "Untitled")
-    authors = format_authors(detail.get("authors"))
+    authors_list: list[str] = detail.get("authors") or []
+    if isinstance(authors_list, list):
+        authors_full = ", ".join(
+            a.get("name", str(a)) if isinstance(a, dict) else str(a) for a in authors_list
+        )
+    else:
+        authors_full = str(authors_list)
     venue = detail.get("venue") or detail.get("conference") or "Unknown"
     abstract = detail.get("abstract") or ""
     summary = detail.get("summary") or ""
     tags = detail.get("tags") or []
-    url = detail.get("url") or detail.get("openreview_url") or ""
+    openreview_url = detail.get("openreview_url") or detail.get("url") or ""
+    pdf_url = detail.get("pdf_url") or ""
+
+    # Top row: links (left) + back button (right)
+    link_parts = []
+    if openreview_url:
+        link_parts.append(f"[View on OpenReview]({openreview_url})")
+    if pdf_url:
+        link_parts.append(f"[Download PDF]({pdf_url})")
+
+    col_links, col_back = st.columns([5, 1])
+    with col_links:
+        if link_parts:
+            st.markdown("  |  ".join(link_parts))
+    with col_back:
+        if st.button("← Results", use_container_width=True):
+            st.session_state["selected_paper_id"] = None
+            st.rerun()
 
     st.markdown(f"### {title}")
-    st.caption(f"Authors: {authors}  |  Venue: {venue}")
-
-    if url:
-        st.markdown(f"[View on OpenReview]({url})")
+    st.caption(f"{authors_full}  |  {venue}")
 
     if abstract:
         with st.expander("Abstract", expanded=True):
@@ -166,78 +196,68 @@ def render_paper_detail(paper_id: str) -> None:
             tag_str = str(tags)
         st.markdown(f"**Tags:** {tag_str}")
 
-    if st.button("Back to results"):
-        st.session_state["selected_paper_id"] = None
-        st.rerun()
+
+def get_umap_coords() -> list[dict[str, Any]]:
+    """Fetch UMAP 2D coordinates for all papers from the API, cached in session state."""
+    if "umap_coords" not in st.session_state:
+        data = make_api_request("/umap", timeout=60)
+        st.session_state["umap_coords"] = data.get("points", []) if data else []
+    return st.session_state["umap_coords"]  # type: ignore[no-any-return]
 
 
 def build_scatter_plot(results: list[dict[str, Any]]) -> go.Figure:
-    """Build a 2D scatter plot of search results.
-
-    Uses the result score as the x-axis (rank/relevance) and
-    a simple index as the y-axis. Points are colored by venue.
-    """
-    if not results:
+    """Build a UMAP 2D scatter plot: all papers in grey, search results in red."""
+    umap_points = get_umap_coords()
+    if not umap_points:
         return go.Figure()
 
-    rows = []
-    for i, r in enumerate(results):
-        title = r.get("title", "Untitled")
-        authors = format_authors(r.get("authors"))
-        venue = r.get("venue") or r.get("conference") or "Unknown"
-        score = r.get("score") or 0.0
-        rows.append(
-            {
-                "id": r.get("id", str(i)),
-                "title": title,
-                "authors": authors,
-                "venue": venue,
-                "score": score,
-                "rank": i + 1,
-            }
-        )
+    result_ids = {r.get("paper_id") or r.get("id", "") for r in results}
 
-    df = pd.DataFrame(rows)
-    unique_venues = sorted(df["venue"].unique())
+    background = [p for p in umap_points if p["paper_id"] not in result_ids]
+    highlighted = [p for p in umap_points if p["paper_id"] in result_ids]
 
-    import plotly.colors
-
-    palettes = [
-        plotly.colors.qualitative.Plotly,
-        plotly.colors.qualitative.Set3,
-        plotly.colors.qualitative.Bold,
-    ]
-    all_colors = [c for p in palettes for c in p]
-    venue_color_map = {v: all_colors[i % len(all_colors)] for i, v in enumerate(unique_venues)}
+    # Build rank lookup for hover text
+    rank_lookup = {
+        (r.get("paper_id") or r.get("id", "")): r.get("rank", "")
+        for r in results
+    }
 
     fig = go.Figure()
-    for venue in unique_venues:
-        vdf = df[df["venue"] == venue]
+
+    if background:
         fig.add_trace(
             go.Scatter(
-                x=vdf["score"].tolist(),
-                y=vdf["rank"].tolist(),
+                x=[p["x"] for p in background],
+                y=[p["y"] for p in background],
                 mode="markers",
-                marker=dict(size=10, color=venue_color_map[venue]),
-                name=venue,
-                text=vdf["title"].tolist(),
-                customdata=list(zip(vdf["authors"].tolist(), vdf["venue"].tolist())),
-                hovertemplate=(
-                    "<b>%{text}</b><br>"
-                    "Authors: %{customdata[0]}<br>"
-                    "Venue: %{customdata[1]}<br>"
-                    "Score: %{x:.4f}<br>"
-                    "<extra></extra>"
-                ),
+                marker=dict(size=7, color="rgba(180,180,180,0.5)"),
+                name="All papers",
+                text=[p["title"] for p in background],
+                hovertemplate="<b>%{text}</b><extra></extra>",
+            )
+        )
+
+    if highlighted:
+        fig.add_trace(
+            go.Scatter(
+                x=[p["x"] for p in highlighted],
+                y=[p["y"] for p in highlighted],
+                mode="markers+text",
+                marker=dict(size=11, color="red", line=dict(width=1, color="white")),
+                name="Search results",
+                text=[str(rank_lookup.get(p["paper_id"], "")) for p in highlighted],
+                textposition="top center",
+                textfont=dict(color="white", size=10),
+                customdata=[p["title"] for p in highlighted],
+                hovertemplate="<b>%{customdata}</b><br>Rank: %{text}<extra></extra>",
             )
         )
 
     fig.update_layout(
-        title="Search Results — Score vs Rank",
-        xaxis_title="Similarity Score",
-        yaxis_title="Rank",
-        yaxis=dict(autorange="reversed"),
-        height=400,
+        title="Paper Map (UMAP) — search results in red",
+        xaxis=dict(showticklabels=False, showgrid=False, zeroline=False),
+        yaxis=dict(showticklabels=False, showgrid=False, zeroline=False),
+        height=450,
         showlegend=True,
         plot_bgcolor="#1E1E1E",
         paper_bgcolor="#1E1E1E",
@@ -310,15 +330,16 @@ def main() -> None:
     st.markdown("---")
 
     # Search form
-    col_input, col_button = st.columns([5, 1])
-    with col_input:
-        query = st.text_input(
-            "Search query",
-            placeholder="e.g. diffusion models for image generation",
-            label_visibility="collapsed",
-        )
-    with col_button:
-        search_clicked = st.button("Search", type="primary", use_container_width=True)
+    with st.form("search_form"):
+        col_input, col_button = st.columns([5, 1])
+        with col_input:
+            query = st.text_input(
+                "Search query",
+                placeholder="e.g. diffusion models for image generation",
+                label_visibility="collapsed",
+            )
+        with col_button:
+            search_clicked = st.form_submit_button("Search", type="primary", use_container_width=True)
 
     # Perform search
     if search_clicked and query.strip():
