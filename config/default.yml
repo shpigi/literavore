@@ -4,7 +4,7 @@
 conferences:
   - name: "CoRL-2025"
     year: 2025
-    max_papers: 2000
+    max_papers: 50
     openreview_url: "https://openreview.net/group?id=robot-learning.org/CoRL/2025/Conference"
     filter_for: []
   # - name: "ICML-2025"

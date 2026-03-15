@@ -145,6 +145,15 @@ def health() -> HealthResponse:
     )
 
 
+@app.get("/conferences", response_model=dict)
+def list_conferences() -> dict:
+    """Return distinct conference names present in the database."""
+    db = _get_db()
+    papers = db.get_papers()
+    conferences = sorted({p.get("conference", "") for p in papers if p.get("conference")})
+    return {"conferences": conferences}
+
+
 @app.get("/papers", response_model=list[dict])
 def list_papers(conference: str | None = None) -> list[dict]:
     """Return all papers, optionally filtered by conference."""

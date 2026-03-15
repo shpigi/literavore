@@ -89,6 +89,9 @@ Edit `config/default.yml` or use environment variables:
 # Health check
 curl localhost:8000/health
 
+# List conferences
+curl localhost:8000/conferences
+
 # Semantic search
 curl -X POST localhost:8000/search \
   -H 'Content-Type: application/json' \
@@ -98,7 +101,7 @@ curl -X POST localhost:8000/search \
 curl localhost:8000/papers/PAPER_ID
 
 # List papers
-curl 'localhost:8000/papers?conference=CoRL-2025&limit=20'
+curl 'localhost:8000/papers?conference=CoRL-2025'
 ```
 
 ## MCP Tools

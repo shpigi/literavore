@@ -128,6 +128,8 @@ def ui(
         str(ui_script),
         "--server.port",
         str(bind_port),
+        "--server.fileWatcherType",
+        "none",
     ]
 
     typer.echo(f"Starting Streamlit UI on port {bind_port}")

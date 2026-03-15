@@ -1,6 +1,7 @@
 services:
   api:
     build: .
+    user: "${UID:-1000}:${GID:-1000}"
     command: literavore serve
     ports:
       - "8000:8000"
@@ -14,6 +15,7 @@ services:
 
   ui:
     build: .
+    user: "${UID:-1000}:${GID:-1000}"
     command: literavore ui
     ports:
       - "8501:8501"
@@ -24,6 +26,7 @@ services:
       - LITERAVORE_CONFIG=/app/config/default.yml
       - LITERAVORE_DATA_DIR=/data
       - LITERAVORE_API_URL=http://api:8000
+      - HOME=/tmp
     depends_on:
       - api
     restart: unless-stopped

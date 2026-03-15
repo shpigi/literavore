@@ -30,6 +30,11 @@ ENV PATH="/app/.venv/bin:$PATH"
 ENV LITERAVORE_CONFIG=/app/config/default.yml
 ENV LITERAVORE_DATA_DIR=/data
 
+# Create a non-root user/group that matches the host owner (UID/GID 1000 by default).
+# At runtime docker-compose passes --user $(id -u):$(id -g) so the actual UID/GID
+# used is always the caller's, keeping volume-mounted files owned by the host user.
+RUN groupadd -g 1000 appuser && useradd -u 1000 -g appuser -s /bin/sh appuser
+
 VOLUME /data
 
 EXPOSE 8000 8501
