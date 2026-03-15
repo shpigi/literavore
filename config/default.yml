@@ -23,6 +23,12 @@ conferences:
   #   openreview_url: "https://openreview.net/group?id=NeurIPS.cc/2024/Conference"
   #   filter_for: ["Oral", "Spotlight"]
 
+# Fetch settings
+fetch:
+  # Used once per run to classify OpenReview venue IDs (e.g. filter Oral/Spotlight).
+  # A capable model is appropriate here since this runs rarely and the input is tiny.
+  venue_filter_model: "gpt-4o"
+
 # PDF download settings
 pdf:
   max_concurrent: 10
@@ -45,7 +51,12 @@ extract:
 
 # Summary generation settings
 summary:
-  model: "gpt-4o-mini"
+  # Generates 3-5 sentence summaries. gpt-4.1-nano is well-suited: structured JSON
+  # prompt with capped input, and 33% cheaper than gpt-4o-mini.
+  model: "gpt-4.1-nano"
+  # Extracts structured tags (key_phrases, domains, methods, datasets_benchmarks).
+  # Pure classification into a fixed schema — nano handles this comfortably.
+  tag_model: "gpt-4.1-nano"
   max_tokens: 500
   temperature: 0.3
   max_concurrent: 10
@@ -55,8 +66,8 @@ summary:
   max_tag_tokens: 300
   cache_enabled: true
   pricing:
-    input_per_1m_tokens: 0.15
-    output_per_1m_tokens: 0.60
+    input_per_1m_tokens: 0.10
+    output_per_1m_tokens: 0.40
 
 # Embedding settings
 embedding:

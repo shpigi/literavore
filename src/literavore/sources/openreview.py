@@ -7,7 +7,7 @@ import os
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
-from literavore.config import ConferenceConfig
+from literavore.config import ConferenceConfig, FetchConfig
 from literavore.sources.base import PaperMetadata
 from literavore.utils.logging import get_logger
 
@@ -51,12 +51,13 @@ def _extract_value(field: Any) -> Any:
 class OpenReviewSource:
     """Fetch paper metadata from OpenReview using the V2 API."""
 
-    def __init__(self) -> None:
+    def __init__(self, fetch_config: FetchConfig | None = None) -> None:
         if not _OPENREVIEW_AVAILABLE:
             raise ImportError(
                 "The 'openreview' package is required to use OpenReviewSource. "
                 "Install it with: pip install openreview-py"
             )
+        self._fetch_config = fetch_config or FetchConfig()
         self._client = openreview.api.OpenReviewClient(baseurl="https://api2.openreview.net")
 
     # ------------------------------------------------------------------
@@ -195,7 +196,7 @@ class OpenReviewSource:
                 "If none match, return all venue IDs."
             )
             response = client.chat.completions.create(
-                model="gpt-4o-mini",
+                model=self._fetch_config.venue_filter_model,
                 messages=[{"role": "user", "content": prompt}],
                 response_format={"type": "json_object"},
                 temperature=0,

@@ -43,6 +43,7 @@ class LLMClient:
         messages: list[dict],
         max_tokens: int | None = None,
         temperature: float | None = None,
+        model: str | None = None,
     ) -> str:
         """Call chat completions synchronously and return the message content string.
 
@@ -54,9 +55,10 @@ class LLMClient:
 
         resolved_max_tokens = max_tokens if max_tokens is not None else self._config.max_tokens
         resolved_temperature = temperature if temperature is not None else self._config.temperature
+        resolved_model = model if model is not None else self._config.model
 
         response = self._client.chat.completions.create(
-            model=self._config.model,
+            model=resolved_model,
             messages=messages,  # type: ignore[arg-type]
             max_tokens=resolved_max_tokens,
             temperature=resolved_temperature,
@@ -75,6 +77,7 @@ class LLMClient:
         messages: list[dict],
         max_tokens: int | None = None,
         temperature: float | None = None,
+        model: str | None = None,
     ) -> str:
         """Call chat completions asynchronously and return the message content string.
 
@@ -86,9 +89,10 @@ class LLMClient:
 
         resolved_max_tokens = max_tokens if max_tokens is not None else self._config.max_tokens
         resolved_temperature = temperature if temperature is not None else self._config.temperature
+        resolved_model = model if model is not None else self._config.model
 
         response = await self._async_client.chat.completions.create(
-            model=self._config.model,
+            model=resolved_model,
             messages=messages,  # type: ignore[arg-type]
             max_tokens=resolved_max_tokens,
             temperature=resolved_temperature,

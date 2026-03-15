@@ -38,6 +38,10 @@ class ExtractConfig(BaseModel):
     max_workers: int = 4
 
 
+class FetchConfig(BaseModel):
+    venue_filter_model: str = "gpt-4o-mini"
+
+
 class SummaryPricingConfig(BaseModel):
     input_per_1m_tokens: float = 0.15
     output_per_1m_tokens: float = 0.60
@@ -45,6 +49,7 @@ class SummaryPricingConfig(BaseModel):
 
 class SummaryConfig(BaseModel):
     model: str = "gpt-4o-mini"
+    tag_model: str = "gpt-4o-mini"
     max_tokens: int = 500
     temperature: float = 0.3
     max_concurrent: int = 10
@@ -84,6 +89,7 @@ class ProcessingConfig(BaseModel):
 
 class LiteravoreConfig(BaseModel):
     conferences: list[ConferenceConfig] = Field(default_factory=list)
+    fetch: FetchConfig = Field(default_factory=FetchConfig)
     pdf: PdfConfig = Field(default_factory=PdfConfig)
     extract: ExtractConfig = Field(default_factory=ExtractConfig)
     summary: SummaryConfig = Field(default_factory=SummaryConfig)

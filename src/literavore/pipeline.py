@@ -138,7 +138,7 @@ class Pipeline:
 
     def _run_fetch(self, force: bool = False) -> None:
         """Fetch paper metadata from OpenReview for all configured conferences."""
-        source = OpenReviewSource()
+        source = OpenReviewSource(fetch_config=self.config.fetch)
         for conference_config in self.config.conferences:
             papers = source.fetch(conference_config)
             for paper in papers:

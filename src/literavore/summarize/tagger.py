@@ -86,6 +86,7 @@ class Tagger:
                 messages,
                 max_tokens=self._config.max_tag_tokens,
                 temperature=0.1,
+                model=self._config.tag_model,
             )
             # Strip markdown code fences if present
             cleaned = raw.strip()
