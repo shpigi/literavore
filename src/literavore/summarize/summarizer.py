@@ -25,7 +25,7 @@ logger = get_logger(__name__, stage="summarize")
 
 def _content_hash(text: str) -> str:
     """Return a short SHA-256 hex digest of *text*."""
-    return hashlib.sha256(text.encode()).hexdigest()[:16]
+    return hashlib.sha256(text.encode("utf-8", errors="replace")).hexdigest()[:16]
 
 
 class Summarizer:

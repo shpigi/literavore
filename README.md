@@ -2,7 +2,7 @@
 
 Conference paper processing pipeline — fetch, extract, summarize, embed, search.
 
-A reimplementation of [conf_digest](../conf_digest) that drops Kedro and GROBID in favor of plain Python with SQLite state tracking and pymupdf4llm for fast in-process PDF extraction.
+A reimplementation of [conf_digest](../conf_digest) that drops Kedro and GROBID in favor of plain Python with SQLite state tracking and pypdf/pdfplumber for fast in-process PDF extraction.
 
 ## Architecture
 
@@ -21,7 +21,7 @@ src/literavore/
 ├── storage/        # Local + S3 backends
 ├── sources/        # OpenReview fetcher
 ├── ingest/         # Async PDF downloader + pikepdf validator
-├── extract/        # pymupdf4llm text extraction
+├── extract/        # PDF text extraction (pypdf + pdfplumber fallback)
 ├── normalize/      # Metadata normalization
 ├── summarize/      # OpenAI summaries + tag extraction
 ├── embed/          # OpenAI embeddings + FAISS index
@@ -143,7 +143,7 @@ ruff check src/          # Lint
 
 | Concern | Choice | Why |
 |---|---|---|
-| PDF extraction | pymupdf4llm | ~15MB, <1s/PDF, no Docker sidecar |
+| PDF extraction | pypdf + pdfplumber | Pure Python, fast, no C extension hangs |
 | Pipeline | Plain Python (~175 LOC) | Kedro was more hassle than help |
 | State | SQLite | Single file, SQL-queryable, transactional |
 | Storage | Local + S3-compatible | Start local, swap via config |

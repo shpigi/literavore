@@ -36,6 +36,10 @@ def run(
     ),
     force: bool = typer.Option(False, "--force", help="Re-process already completed items"),
     dev: bool = typer.Option(False, "--dev", help="Enable dev mode (sets LITERAVORE_DEV_MODE=1)"),
+    batch_size: Optional[int] = typer.Option(
+        None, "--batch-size", "-b",
+        help="Process papers in batches of N through download/extract/summarize",
+    ),
 ) -> None:
     """Run the pipeline."""
     if dev:
@@ -46,6 +50,9 @@ def run(
     except Exception as exc:
         typer.echo(f"Error loading config: {exc}", err=True)
         raise typer.Exit(code=1)
+
+    if batch_size is not None:
+        cfg.pipeline.batch_size = batch_size
 
     try:
         from literavore.pipeline import Pipeline  # noqa: PLC0415

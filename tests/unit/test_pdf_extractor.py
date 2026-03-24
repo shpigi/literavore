@@ -7,7 +7,6 @@ import pytest
 
 from literavore.extract.pdf_extractor import (
     _extract_abstract,
-    _extract_figures,
     _parse_sections,
     extract_papers_batch,
     extract_pdf,
@@ -88,32 +87,18 @@ class TestExtractAbstract:
         assert result == "The abstract content."
 
     def test_fallback_to_first_paragraph(self):
-        text = "This is the first paragraph.\n\nThis is the second."
+        long_para = "This is the first paragraph. " * 10  # > 100 chars
+        text = f"{long_para}\n\nThis is the second."
         sections = [{"heading": "Introduction", "text": "Intro."}]
         result = _extract_abstract(text, sections)
-        assert result == "This is the first paragraph."
+        assert result == long_para.strip()
 
     def test_skips_heading_lines_in_fallback(self):
-        text = "# Title\n\nActual first paragraph."
+        long_para = "Actual first paragraph content. " * 10  # > 100 chars
+        text = f"# Title\n\n{long_para}"
         sections = []
         result = _extract_abstract(text, sections)
-        assert result == "Actual first paragraph."
-
-
-class TestExtractFigures:
-    def test_no_figures(self):
-        assert _extract_figures("Plain text with no images.") == []
-
-    def test_single_figure(self):
-        text = "Text ![Figure 1: A chart](fig1.png) more text."
-        figures = _extract_figures(text)
-        assert len(figures) == 1
-        assert figures[0]["caption"] == "Figure 1: A chart"
-
-    def test_multiple_figures(self):
-        text = "![Fig A](a.png) and ![Fig B](b.png)"
-        figures = _extract_figures(text)
-        assert len(figures) == 2
+        assert result == long_para.strip()
 
 
 class TestExtractPapersBatch:

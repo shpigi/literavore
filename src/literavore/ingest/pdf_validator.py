@@ -1,10 +1,13 @@
 """PDF validation utilities for literavore ingest stage."""
 
 import io
+import logging
 from pathlib import Path
 
-import fitz
 import pikepdf
+import pypdf
+
+logging.getLogger("pypdf").setLevel(logging.ERROR)
 
 from literavore.utils.logging import get_logger
 
@@ -55,10 +58,9 @@ def validate_pdf(data: bytes) -> tuple[bool, str | None]:
         return False, msg
 
     try:
-        doc = fitz.open(stream=data, filetype="pdf")
-        doc.close()
+        pypdf.PdfReader(io.BytesIO(data))
     except Exception as exc:
-        msg = f"PDF not openable by PyMuPDF: {exc}"
+        msg = f"PDF not readable by pypdf: {exc}"
         logger.debug(msg)
         return False, msg
 

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Literavore is a conference paper processing pipeline that fetches academic papers from OpenReview, extracts text with pymupdf4llm, generates AI summaries/tags, builds vector indexes, and serves semantic search. It replaces conf_digest, dropping Kedro and GROBID in favor of plain Python with SQLite state tracking.
+Literavore is a conference paper processing pipeline that fetches academic papers from OpenReview, extracts text with pypdf/pdfplumber, generates AI summaries/tags, builds vector indexes, and serves semantic search. It replaces conf_digest, dropping Kedro and GROBID in favor of plain Python with SQLite state tracking.
 
 ## Architecture
 
@@ -33,7 +33,7 @@ src/literavore/
 ├── storage/        # Storage backends (local, s3)
 ├── sources/        # Paper sources (openreview)
 ├── ingest/         # PDF download + validation
-├── extract/        # pymupdf4llm text extraction
+├── extract/        # PDF text extraction (pypdf + pdfplumber fallback)
 ├── normalize/      # Metadata normalization
 ├── summarize/      # LLM summaries + tags
 ├── embed/          # Embeddings + FAISS index
@@ -51,6 +51,7 @@ uv sync
 literavore run --config config/default.yml
 literavore run --stage extract --force  # Re-run single stage
 literavore run --dev                    # Dev mode (keeps PDFs)
+literavore run --batch-size 200         # Batched download/extract/summarize
 
 # Serve
 literavore serve                        # FastAPI on :8000
@@ -80,7 +81,7 @@ ruff check src/                         # Lint
 - ruff formatting, line-length 100
 - Pydantic v2 for all data models
 - async for I/O-bound work (downloads, LLM calls)
-- ThreadPoolExecutor for CPU-bound work (PDF extraction)
+- multiprocessing.Process for PDF extraction (killable on timeout)
 
 ## Agentic Development
 

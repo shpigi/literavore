@@ -19,6 +19,31 @@ logger = get_logger(__name__, stage="download")
 OPENREVIEW_BASE = "https://openreview.net"
 
 
+class _TokenBucket:
+    """Async token bucket for global rate limiting across concurrent workers."""
+
+    def __init__(self, rate: float) -> None:
+        self._rate = rate  # tokens (requests) per second
+        self._tokens = 0.0  # start empty to prevent initial burst
+        self._last_refill: float = 0.0
+        self._lock = asyncio.Lock()
+
+    async def acquire(self) -> None:
+        async with self._lock:
+            now = asyncio.get_event_loop().time()
+            if self._last_refill == 0.0:
+                self._last_refill = now
+            elapsed = now - self._last_refill
+            self._tokens = min(self._rate, self._tokens + elapsed * self._rate)
+            self._last_refill = now
+            if self._tokens < 1.0:
+                wait = (1.0 - self._tokens) / self._rate
+                self._tokens = 0.0
+                await asyncio.sleep(wait)
+            else:
+                self._tokens -= 1.0
+
+
 class AsyncPDFDownloader:
     """Async PDF downloader with concurrency control, retries, and rate-limit handling."""
 
@@ -27,6 +52,7 @@ class AsyncPDFDownloader:
         self._db = db
         self._storage = storage
         self._semaphore = asyncio.Semaphore(config.max_concurrent)
+        self._rate_limiter = _TokenBucket(config.requests_per_second) if config.requests_per_second > 0 else None
         self._session: aiohttp.ClientSession | None = None
 
     async def __aenter__(self) -> AsyncPDFDownloader:
@@ -90,8 +116,10 @@ class AsyncPDFDownloader:
         storage_key = f"pdfs/{paper_id}.pdf"
 
         async with self._semaphore:
-            # Polite delay before each request
-            if self._config.delay_between_requests > 0:
+            # Rate-limit: token bucket (global) takes priority; per-worker delay is fallback.
+            if self._rate_limiter is not None:
+                await self._rate_limiter.acquire()
+            elif self._config.delay_between_requests > 0:
                 await asyncio.sleep(self._config.delay_between_requests)
 
             self._db.update_stage_status(paper_id, "download", "running")
@@ -136,13 +164,19 @@ class AsyncPDFDownloader:
                 except aiohttp.ClientResponseError as exc:
                     last_error = f"HTTP {exc.status}: {exc.message}"
                     if exc.status == 429:
+                        retry_after = self._config.rate_limit_backoff
+                        if exc.headers and "Retry-After" in exc.headers:
+                            try:
+                                retry_after = float(exc.headers["Retry-After"])
+                            except ValueError:
+                                pass
                         logger.warning(
                             "Rate-limited on %s (attempt %d) — extra delay %.1fs",
                             paper_id,
                             attempt,
-                            self._config.rate_limit_backoff,
+                            retry_after,
                         )
-                        await asyncio.sleep(self._config.rate_limit_backoff)
+                        await asyncio.sleep(retry_after)
                     else:
                         logger.warning("HTTP error for %s: %s", paper_id, last_error)
 

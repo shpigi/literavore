@@ -4,24 +4,24 @@
 conferences:
   - name: "CoRL-2025"
     year: 2025
-    max_papers: 2000
+    max_papers: 10000
     openreview_url: "https://openreview.net/group?id=robot-learning.org/CoRL/2025/Conference"
     filter_for: []
-  # - name: "ICML-2025"
-  #   year: 2025
-  #   max_papers: 2000
-  #   openreview_url: "https://openreview.net/group?id=ICML.cc/2025/Conference"
-  #   filter_for: ["Oral", "Spotlight"]
-  # - name: "ICLR-2025"
-  #   year: 2025
-  #   max_papers: 2000
-  #   openreview_url: "https://openreview.net/group?id=ICLR.cc/2025/Conference"
-  #   filter_for: ["Oral", "Spotlight"]
-  # - name: "NeurIPS-2024"
-  #   year: 2024
-  #   max_papers: 2000
-  #   openreview_url: "https://openreview.net/group?id=NeurIPS.cc/2024/Conference"
-  #   filter_for: ["Oral", "Spotlight"]
+  - name: "ICML-2025"
+    year: 2025
+    max_papers: 10000
+    openreview_url: "https://openreview.net/group?id=ICML.cc/2025/Conference"
+    filter_for: []
+  - name: "ICLR-2025"
+    year: 2025
+    max_papers: 10000
+    openreview_url: "https://openreview.net/group?id=ICLR.cc/2025/Conference"
+    filter_for: []
+  - name: "NeurIPS-2025"
+    year: 2025
+    max_papers: 10000
+    openreview_url: "https://openreview.net/group?id=NeurIPS.cc/2025/Conference"
+    filter_for: []
 
 # Fetch settings
 fetch:
@@ -31,14 +31,15 @@ fetch:
 
 # PDF download settings
 pdf:
-  max_concurrent: 10
-  delay_between_requests: 1.5
+  max_concurrent: 20
+  requests_per_second: 5.0  # global token-bucket rate limit across all workers; 0 = use delay_between_requests
+  delay_between_requests: 0.5  # fallback per-worker delay when requests_per_second=0
   max_retries: 3
   timeout: 30
   chunk_size: 8192
   user_agent: "Literavore/1.0 (PDF Fetcher)"
   validate_pdfs: true
-  keep_pdfs: true  # Delete PDFs after extraction in prod; set true in dev
+  keep_pdfs: false  # Delete PDFs after extraction in prod; set true in dev
   base_backoff: 2.0
   rate_limit_backoff: 10.0
   max_backoff: 60.0
@@ -48,6 +49,8 @@ pdf:
 extract:
   batch_size: 50
   max_workers: 4
+  timeout_per_paper: 90  # seconds per paper; 0 = no timeout
+  max_retries: 3  # retry timed-out papers with re-downloaded PDF
 
 # Summary generation settings
 summary:
@@ -66,8 +69,8 @@ summary:
   max_tag_tokens: 300
   cache_enabled: true
   pricing:
-    input_per_1m_tokens: 0.10
-    output_per_1m_tokens: 0.40
+    input_per_1m_tokens: 0.20
+    output_per_1m_tokens: 0.80
 
 # Embedding settings
 embedding:
@@ -90,6 +93,10 @@ serve:
 storage:
   backend: "local"  # "local" or "s3"
   data_dir: "data"
+
+# Pipeline settings
+pipeline:
+  batch_size: 200  # 0 = all-at-once; >0 = batch download/extract/summarize in groups of N
 
 # Processing settings
 processing:

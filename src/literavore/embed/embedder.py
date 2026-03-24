@@ -94,6 +94,7 @@ class Embedder:
     def __init__(self, config: EmbeddingConfig) -> None:
         self._config = config
         self._cache: dict[str, list[float]] = {}
+        self._total_tokens: int = 0
 
         api_key = os.environ.get("OPENAI_API_KEY", "").strip()
         self._mock_mode = not api_key
@@ -206,6 +207,8 @@ class Embedder:
                 input=chunk,
                 dimensions=self._config.dimensions,
             )
+            if response.usage:
+                self._total_tokens += response.usage.total_tokens
             for item in sorted(response.data, key=lambda x: x.index):
                 vec = item.embedding
                 # Ensure correct dimensionality (some models ignore the param)

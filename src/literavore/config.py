@@ -20,7 +20,8 @@ class ConferenceConfig(BaseModel):
 
 class PdfConfig(BaseModel):
     max_concurrent: int = 10
-    delay_between_requests: float = 1.5
+    requests_per_second: float = 5.0  # global token-bucket rate limit across all workers; 0 = unlimited
+    delay_between_requests: float = 1.5  # fallback per-worker delay when requests_per_second=0
     max_retries: int = 3
     timeout: int = 30
     chunk_size: int = 8192
@@ -36,6 +37,8 @@ class PdfConfig(BaseModel):
 class ExtractConfig(BaseModel):
     batch_size: int = 50
     max_workers: int = 4
+    timeout_per_paper: int = 90  # seconds; 0 = no timeout
+    max_retries: int = 3
 
 
 class FetchConfig(BaseModel):
@@ -43,8 +46,8 @@ class FetchConfig(BaseModel):
 
 
 class SummaryPricingConfig(BaseModel):
-    input_per_1m_tokens: float = 0.15
-    output_per_1m_tokens: float = 0.60
+    input_per_1m_tokens: float = 0.20
+    output_per_1m_tokens: float = 0.80
 
 
 class SummaryConfig(BaseModel):
@@ -87,6 +90,10 @@ class ProcessingConfig(BaseModel):
     min_abstract_length: int = 50
 
 
+class PipelineConfig(BaseModel):
+    batch_size: int = 0  # 0 = all-at-once (current behavior)
+
+
 class LiteravoreConfig(BaseModel):
     conferences: list[ConferenceConfig] = Field(default_factory=list)
     fetch: FetchConfig = Field(default_factory=FetchConfig)
@@ -97,6 +104,7 @@ class LiteravoreConfig(BaseModel):
     serve: ServeConfig = Field(default_factory=ServeConfig)
     storage: StorageConfig = Field(default_factory=StorageConfig)
     processing: ProcessingConfig = Field(default_factory=ProcessingConfig)
+    pipeline: PipelineConfig = Field(default_factory=PipelineConfig)
 
 
 def load_config(path: Path | None = None) -> LiteravoreConfig:

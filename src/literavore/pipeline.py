@@ -34,6 +34,11 @@ class Pipeline:
         self.db = Database(db_path)
         self.storage: StorageBackend = LocalStorage(data_dir)
 
+        # Cost accumulators across all batches
+        self._summarize_prompt_tokens: int = 0
+        self._summarize_completion_tokens: int = 0
+        self._embed_tokens: int = 0
+
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
@@ -58,20 +63,27 @@ class Pipeline:
         run_id = self.db.start_run(config_hash, stages_to_run)
         self.logger.info("Pipeline run %d started (stages: %s)", run_id, stages_to_run)
 
-        for stage in stages_to_run:
-            t0 = time.time()
-            self.logger.info("Stage [%s] starting", stage)
-            try:
-                self._run_stage(stage, force=force)
-                elapsed = time.time() - t0
-                self.logger.info("Stage [%s] completed in %.2fs", stage, elapsed)
-            except Exception as exc:  # noqa: BLE001
-                elapsed = time.time() - t0
-                self.logger.error(
-                    "Stage [%s] failed after %.2fs: %s", stage, elapsed, exc, exc_info=True
-                )
+        batched_stages = {"download", "extract", "summarize"}
+        batched_stages_requested = bool(batched_stages & set(stages_to_run))
+
+        if self.config.pipeline.batch_size > 0 and batched_stages_requested:
+            self._run_batched(stages_to_run, force)
+        else:
+            for stage in stages_to_run:
+                t0 = time.time()
+                self.logger.info("Stage [%s] starting", stage)
+                try:
+                    self._run_stage(stage, force=force)
+                    elapsed = time.time() - t0
+                    self.logger.info("Stage [%s] completed in %.2fs", stage, elapsed)
+                except Exception as exc:  # noqa: BLE001
+                    elapsed = time.time() - t0
+                    self.logger.error(
+                        "Stage [%s] failed after %.2fs: %s", stage, elapsed, exc, exc_info=True
+                    )
 
         self.db.complete_run(run_id)
+        self._log_cost_summary()
         self.logger.info("Pipeline run %d finished", run_id)
 
     # ------------------------------------------------------------------
@@ -117,7 +129,92 @@ class Pipeline:
                 counts[conf] = n + 1
         return result
 
-    def _run_stage(self, stage: str, force: bool = False) -> None:
+    def _run_batched(self, stages: list[str], force: bool = False) -> None:
+        """Run download/extract/summarize in batches, with fetch and embed unbatched."""
+        batch_size = self.config.pipeline.batch_size
+        batched_stages = {"download", "extract", "summarize"}
+
+        # Run fetch first if requested
+        if "fetch" in stages:
+            t0 = time.time()
+            self.logger.info("Stage [fetch] starting")
+            try:
+                self._run_fetch(force=force)
+                self.logger.info("Stage [fetch] completed in %.2fs", time.time() - t0)
+            except Exception as exc:  # noqa: BLE001
+                self.logger.error(
+                    "Stage [fetch] failed after %.2fs: %s", time.time() - t0, exc, exc_info=True
+                )
+
+        # Get all papers needing download (the entry point for batched stages)
+        if "download" in stages:
+            all_papers = self._limit_papers_by_conference(
+                self.db.get_papers_needing_stage("download", force=force)
+            )
+        elif "extract" in stages:
+            all_papers = self._limit_papers_by_conference(
+                self.db.get_papers_needing_stage("extract", force=force)
+            )
+        elif "summarize" in stages:
+            all_papers = self._limit_papers_by_conference(
+                self.db.get_papers_needing_stage("summarize", force=force)
+            )
+        else:
+            all_papers = []
+
+        if all_papers:
+            # Chunk into batches
+            batches = [
+                all_papers[i : i + batch_size] for i in range(0, len(all_papers), batch_size)
+            ]
+            self.logger.info(
+                "Batched processing: %d papers in %d batches of up to %d",
+                len(all_papers),
+                len(batches),
+                batch_size,
+            )
+
+            for batch_num, batch in enumerate(batches, 1):
+                self.logger.info(
+                    "Batch %d/%d: %d papers", batch_num, len(batches), len(batch)
+                )
+                for stage in stages:
+                    if stage not in batched_stages:
+                        continue
+                    t0 = time.time()
+                    self.logger.info("Stage [%s] starting (batch %d)", stage, batch_num)
+                    try:
+                        self._run_stage(stage, force=force, papers=batch)
+                        elapsed = time.time() - t0
+                        self.logger.info(
+                            "Stage [%s] completed in %.2fs (batch %d)", stage, elapsed, batch_num
+                        )
+                    except Exception as exc:  # noqa: BLE001
+                        elapsed = time.time() - t0
+                        self.logger.error(
+                            "Stage [%s] failed after %.2fs (batch %d): %s",
+                            stage,
+                            elapsed,
+                            batch_num,
+                            exc,
+                            exc_info=True,
+                        )
+        else:
+            self.logger.info("No papers needing batched processing — skipping")
+
+        # Run embed last if requested
+        if "embed" in stages:
+            t0 = time.time()
+            self.logger.info("Stage [embed] starting")
+            try:
+                self._run_embed(force=force)
+                self.logger.info("Stage [embed] completed in %.2fs", time.time() - t0)
+            except Exception as exc:  # noqa: BLE001
+                self.logger.error(
+                    "Stage [embed] failed after %.2fs: %s", time.time() - t0, exc, exc_info=True
+                )
+
+    def _run_stage(self, stage: str, force: bool = False, papers: list[dict] | None = None) -> None:
         """Dispatch *stage* to the appropriate handler."""
         if stage not in STAGES:
             raise ValueError(f"Unknown stage {stage!r}. Valid stages: {STAGES}")
@@ -130,7 +227,37 @@ class Pipeline:
             "embed": self._run_embed,
         }
         handler = dispatch[stage]
-        handler(force)  # type: ignore[operator]
+        if stage in {"download", "extract", "summarize"} and papers is not None:
+            handler(force, papers)  # type: ignore[operator]
+        else:
+            handler(force)  # type: ignore[operator]
+
+    def _log_cost_summary(self) -> None:
+        """Log accumulated OpenAI token usage and estimated cost."""
+        summary_cfg = self.config.summary
+        prompt_cost = (
+            self._summarize_prompt_tokens / 1_000_000 * summary_cfg.pricing.input_per_1m_tokens
+        )
+        completion_cost = (
+            self._summarize_completion_tokens
+            / 1_000_000
+            * summary_cfg.pricing.output_per_1m_tokens
+        )
+        summarize_cost = prompt_cost + completion_cost
+
+        # text-embedding-3-large: $0.13/1M tokens
+        embed_cost = self._embed_tokens / 1_000_000 * 0.13
+
+        self.logger.info(
+            "OpenAI usage — summarize: %d prompt + %d completion tokens (~$%.4f) | "
+            "embed: %d tokens (~$%.4f) | total: ~$%.4f",
+            self._summarize_prompt_tokens,
+            self._summarize_completion_tokens,
+            summarize_cost,
+            self._embed_tokens,
+            embed_cost,
+            summarize_cost + embed_cost,
+        )
 
     # ------------------------------------------------------------------
     # Stage stubs (filled in by later phases)
@@ -159,11 +286,12 @@ class Pipeline:
                 "Fetched %d papers for conference %s", len(papers), conference_config.name
             )
 
-    def _run_download(self, force: bool = False) -> None:
+    def _run_download(self, force: bool = False, papers: list[dict] | None = None) -> None:
         """Download PDFs for all papers that have not yet been downloaded."""
-        papers = self._limit_papers_by_conference(
-            self.db.get_papers_needing_stage("download", force=force)
-        )
+        if papers is None:
+            papers = self._limit_papers_by_conference(
+                self.db.get_papers_needing_stage("download", force=force)
+            )
         if not papers:
             self.logger.info("No papers needing download — skipping")
             return
@@ -184,11 +312,12 @@ class Pipeline:
             len(results),
         )
 
-    def _run_extract(self, force: bool = False) -> None:
-        """Extract text from downloaded PDFs using pymupdf4llm."""
-        papers = self._limit_papers_by_conference(
-            self.db.get_papers_needing_stage("extract", force=force)
-        )
+    def _run_extract(self, force: bool = False, papers: list[dict] | None = None) -> None:
+        """Extract text from downloaded PDFs."""
+        if papers is None:
+            papers = self._limit_papers_by_conference(
+                self.db.get_papers_needing_stage("extract", force=force)
+            )
         if not papers:
             self.logger.info("No papers needing extraction — skipping")
             return
@@ -201,17 +330,21 @@ class Pipeline:
             "Extraction complete: %d/%d succeeded", len(results), len(papers)
         )
 
-    def _run_summarize(self, force: bool = False) -> None:
+    def _run_summarize(self, force: bool = False, papers: list[dict] | None = None) -> None:
         """Generate LLM summaries and tags for extracted papers."""
-        papers = self._limit_papers_by_conference(
-            self.db.get_papers_needing_stage("summarize", force=force)
-        )
+        if papers is None:
+            papers = self._limit_papers_by_conference(
+                self.db.get_papers_needing_stage("summarize", force=force)
+            )
         if not papers:
             self.logger.info("No papers needing summarization — skipping")
             return
         self.logger.info("Summarizing %d papers", len(papers))
         summarizer = Summarizer(self.config.summary, self.db, self.storage)
         results = asyncio.run(summarizer.summarize_papers(papers))
+        cost = summarizer._llm.get_cost_summary()
+        self._summarize_prompt_tokens += cost["total_prompt_tokens"]
+        self._summarize_completion_tokens += cost["total_completion_tokens"]
         self.logger.info("Summarization complete: %d/%d succeeded", len(results), len(papers))
 
     def _run_embed(self, force: bool = False) -> None:
@@ -244,6 +377,7 @@ class Pipeline:
         # Generate embeddings
         embedder = Embedder(self.config.embedding)
         embedding_records = embedder.embed_papers(papers, summaries)
+        self._embed_tokens += embedder._total_tokens
 
         # Build and save the index
         paper_index = PaperIndex(
