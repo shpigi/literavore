@@ -11,7 +11,7 @@ class SearchRequest(BaseModel):
     query: str
     top_k: int = Field(default=10, ge=1, le=100)
     view: str = "keyword_enriched"
-    venue_filter: str | None = None
+    conference_filter: list[str] | None = None
 
 
 class SearchResult(BaseModel):

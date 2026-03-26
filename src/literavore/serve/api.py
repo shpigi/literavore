@@ -232,7 +232,7 @@ def search(request: SearchRequest) -> SearchResponse:
     view = request.view if request.view in index.views else index.views[0]
 
     paper_venues: dict[str, str] | None = None
-    if request.venue_filter:
+    if request.conference_filter:
         db = _get_db()
         all_papers = db.get_papers()
         paper_venues = {p["id"]: (p.get("conference") or "") for p in all_papers}
@@ -241,7 +241,7 @@ def search(request: SearchRequest) -> SearchResponse:
         query_vector=query_vector,
         view=view,
         top_k=request.top_k,
-        venue_filter=request.venue_filter,
+        venue_filter=request.conference_filter,
         paper_venues=paper_venues,
     )
 

@@ -92,7 +92,7 @@ class PaperIndex:
         query_vector: list[float],
         view: str,
         top_k: int = 10,
-        venue_filter: str | None = None,
+        venue_filter: list[str] | None = None,
         paper_venues: dict[str, str] | None = None,
     ) -> list[dict]:
         """Search for nearest neighbours in *view*.
@@ -101,8 +101,7 @@ class PaperIndex:
             query_vector: Query embedding (same dimension as the index).
             view: Which view's index to search.
             top_k: Maximum number of results.
-            venue_filter: If set, only return results where
-                paper_venues[paper_id] == venue_filter.
+            venue_filter: If set, only return results whose venue is in this list.
             paper_venues: Optional mapping from paper_id to venue string.
 
         Returns:
@@ -124,14 +123,15 @@ class PaperIndex:
         fetch_k = min(index.ntotal, top_k * 10 if venue_filter else top_k)
         scores, ids = index.search(q, fetch_k)
 
+        venue_set = set(venue_filter) if venue_filter else None
         results: list[dict] = []
         rank = 1
         for score, idx in zip(scores[0], ids[0], strict=True):
             if idx < 0:
                 continue
             paper_id = meta[idx]
-            if venue_filter and paper_venues:
-                if paper_venues.get(paper_id) != venue_filter:
+            if venue_set and paper_venues:
+                if paper_venues.get(paper_id) not in venue_set:
                     continue
             results.append(
                 {
